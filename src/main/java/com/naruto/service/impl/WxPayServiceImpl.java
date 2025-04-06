@@ -1,0 +1,124 @@
+package com.naruto.service.impl;
+
+
+import com.google.gson.Gson;
+import com.naruto.config.WxPayConfig;
+import com.naruto.enums.wxpay.WxApiType;
+import com.naruto.model.entity.OrderInfo;
+import com.naruto.service.OrderInfoService;
+import com.naruto.service.WxPayService;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import javax.annotation.Resource;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 微信支付接口实现
+ *
+ * @Author: naruto
+ * @CreateTime: 2025-04-06-18:01
+ */
+@Slf4j
+@Service
+public class WxPayServiceImpl implements WxPayService {
+
+    @Resource
+    private WxPayConfig wxPayConfig;
+
+    @Resource
+    private CloseableHttpClient wxPayClient;
+
+    @Resource
+    private OrderInfoService orderInfoService;
+
+    /**
+     * 创建订单调用Native支付接口
+     *
+     * @param productId
+     * @return code_url
+     * @throws IOException
+     */
+    @Override
+    public Map<String, Object> nativePay(Long productId) throws IOException {
+
+        log.info("生成订单");
+
+        // 生成订单
+        OrderInfo orderInfo = orderInfoService.createOrderByProductId(productId);
+        String codeUrl = orderInfo.getCodeUrl();
+        if (orderInfo != null && !StringUtils.isEmpty(codeUrl)) {
+            log.info("二维码已存在，订单已存在");
+            HashMap<String, Object> map = new HashMap<>();
+            map.put("codeUrl", codeUrl);
+            map.put("orderNo", orderInfo.getOrderNo());
+        }
+
+        // 调用统一下单API
+        HttpPost httpPost = new HttpPost(wxPayConfig.getDomain().concat(WxApiType.NATIVE_PAY.getType()));
+        // 构造body参数
+        HashMap<String, Object> paramsMap = new HashMap<>();
+        paramsMap.put("appid", wxPayConfig.getAppid());
+        paramsMap.put("mchid", wxPayConfig.getMchId());
+        paramsMap.put("description", orderInfo.getTitle());
+        paramsMap.put("out_trade_no", orderInfo.getOrderNo());
+        paramsMap.put("notify_url", wxPayConfig.getNotifyDomain().concat(WxApiType.NATIVE_PAY.getType()));
+        // 构造订单金额map
+        HashMap<String, Object> amountMap = new HashMap<>();
+        amountMap.put("total", orderInfo.getTotalFee());
+        amountMap.put("currency", "CNY");
+        paramsMap.put("amount", amountMap);
+
+        log.info("请求参数：{}", paramsMap);
+
+        Gson gson = new Gson();
+        String jsonParams = gson.toJson(paramsMap);
+        StringEntity stringEntity = new StringEntity(jsonParams, "UTF-8");
+        stringEntity.setContentType("application/json");
+        httpPost.setEntity(stringEntity);
+        httpPost.setHeader("Accept", "application/json");
+
+        // 完成签名并执行请求
+        CloseableHttpResponse response = wxPayClient.execute(httpPost);
+
+        log.info("解析微信native下单响应");
+        try {
+            // 获取响应体并转为字符串和响应状态码
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                // 处理成功
+                log.info("成功, 返回结果 = {}", response);
+            } else if (statusCode == 204) {
+                // 处理成功，无返回Body
+                log.info("成功");
+            } else {
+                log.info("Native下单失败,响应码 = {},返回结果 = {}", statusCode, bodyAsString);
+                throw new IOException("request failed");
+            }
+
+            HashMap<String, String> resultMap = gson.fromJson(bodyAsString, HashMap.class);
+            // 解析响应结果的二维码
+            codeUrl = resultMap.get("code_url");
+
+            // 保存二维码
+            orderInfoService.saveCodeUrl(orderInfo.getOrderNo(), codeUrl);
+
+            HashMap<String, Object> map = new HashMap<>();
+            map.put("codeUrl", codeUrl);
+            map.put("orderNo", orderInfo.getOrderNo());
+            return map;
+        } finally {
+            // fixme 为什么要关闭这个？连接资源有限？
+            response.close();
+        }
+    }
+}

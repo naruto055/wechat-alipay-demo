@@ -2,6 +2,7 @@ package com.naruto.model.vo;
 
 
 import lombok.Data;
+import lombok.experimental.Accessors;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.Map;
  * @CreateTime: 2025-04-05-21:25
  */
 @Data
+@Accessors(chain = true)
 public class R {
     private Integer code;
     private String message;
