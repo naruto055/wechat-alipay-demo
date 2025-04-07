@@ -12,6 +12,7 @@ import com.naruto.util.OrderNoUtils;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.List;
 
 @Service
 public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo> implements OrderInfoService {
@@ -63,6 +64,18 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         OrderInfo orderInfo = new OrderInfo();
         orderInfo.setCodeUrl(codeUrl);
         baseMapper.update(orderInfo, queryWrapper);
+    }
+
+    /**
+     * 查询订单列表，并倒序查询
+     *
+     * @return
+     */
+    @Override
+    public List<OrderInfo> listOrderByCreateTimeDesc() {
+        QueryWrapper<OrderInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.orderByDesc("create_time");
+        return baseMapper.selectList(queryWrapper);
     }
 
     /**

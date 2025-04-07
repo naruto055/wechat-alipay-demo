@@ -3,6 +3,8 @@ package com.naruto.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.naruto.model.entity.OrderInfo;
 
+import java.util.List;
+
 public interface OrderInfoService extends IService<OrderInfo> {
 
     /**
@@ -20,4 +22,6 @@ public interface OrderInfoService extends IService<OrderInfo> {
      * @param codeUrl
      */
     void saveCodeUrl(String orderNo, String codeUrl);
+
+    List<OrderInfo> listOrderByCreateTimeDesc();
 }
