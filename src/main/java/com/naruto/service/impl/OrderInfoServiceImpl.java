@@ -1,5 +1,6 @@
 package com.naruto.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.naruto.enums.OrderStatus;
@@ -9,11 +10,13 @@ import com.naruto.model.entity.OrderInfo;
 import com.naruto.model.entity.Product;
 import com.naruto.service.OrderInfoService;
 import com.naruto.util.OrderNoUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.util.List;
 
+@Slf4j
 @Service
 public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo> implements OrderInfoService {
 
@@ -76,6 +79,39 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         QueryWrapper<OrderInfo> queryWrapper = new QueryWrapper<>();
         queryWrapper.orderByDesc("create_time");
         return baseMapper.selectList(queryWrapper);
+    }
+
+    /**
+     * 根据订单号更新订单状态
+     *
+     * @param outTradeNo
+     * @param orderStatus
+     */
+    @Override
+    public void updateStatusByOrderNo(String outTradeNo, OrderStatus orderStatus) {
+        log.info("更新订单状态：{}", orderStatus.getType());
+        QueryWrapper<OrderInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("order_no", outTradeNo);
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setOrderStatus(orderStatus.getType());
+        baseMapper.update(orderInfo, queryWrapper);
+    }
+
+    /**
+     * 根据订单号查询订单状态
+     *
+     * @param outTradeNo
+     * @return
+     */
+    @Override
+    public String getOrderStatus(String outTradeNo) {
+        LambdaQueryWrapper<OrderInfo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(OrderInfo::getOrderNo, outTradeNo);
+        OrderInfo orderInfo = baseMapper.selectOne(queryWrapper);
+        if (orderInfo == null)  {
+            return null;
+        }
+        return orderInfo.getOrderStatus();
     }
 
     /**

@@ -9,6 +9,7 @@ public class HttpUtils {
 
     /**
      * 将通知参数转化为字符串
+     *
      * @param request
      * @return
      */

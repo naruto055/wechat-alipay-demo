@@ -2,6 +2,8 @@ package com.naruto.service;
 
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -19,4 +21,11 @@ public interface WxPayService {
      * @return
      */
     Map<String, Object> nativePay(Long productId) throws IOException;
+
+    /**
+     * 处理订单
+     *
+     * @param bodyMap
+     */
+    void processOrder(HashMap<String, Object> bodyMap) throws GeneralSecurityException;
 }

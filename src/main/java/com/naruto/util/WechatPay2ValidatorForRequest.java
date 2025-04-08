@@ -44,12 +44,14 @@ public class WechatPay2ValidatorForRequest{
 
     public final boolean validate(HttpServletRequest request) throws IOException {
         try {
+            // 处理请求参数
             validateParameters(request);
 
             String message = buildMessage(request);
             String serial = request.getHeader(WECHAT_PAY_SERIAL);
             String signature = request.getHeader(WECHAT_PAY_SIGNATURE);
 
+            // 验签
             if (!verifier.verify(serial, message.getBytes(StandardCharsets.UTF_8), signature)) {
                 throw verifyFail("serial=[%s] message=[%s] sign=[%s], request-id=[%s]",
                         serial, message, signature, request.getHeader(REQUEST_ID));
@@ -75,6 +77,7 @@ public class WechatPay2ValidatorForRequest{
             }
         }
 
+        // 判断请求是否过期
         String timestampStr = header;
         try {
             Instant responseTime = Instant.ofEpochSecond(Long.parseLong(timestampStr));

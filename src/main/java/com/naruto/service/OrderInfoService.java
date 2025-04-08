@@ -1,6 +1,7 @@
 package com.naruto.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.naruto.enums.OrderStatus;
 import com.naruto.model.entity.OrderInfo;
 
 import java.util.List;
@@ -24,4 +25,8 @@ public interface OrderInfoService extends IService<OrderInfo> {
     void saveCodeUrl(String orderNo, String codeUrl);
 
     List<OrderInfo> listOrderByCreateTimeDesc();
+
+    void updateStatusByOrderNo(String outTradeNo, OrderStatus orderStatus);
+
+    String getOrderStatus(String outTradeNo);
 }

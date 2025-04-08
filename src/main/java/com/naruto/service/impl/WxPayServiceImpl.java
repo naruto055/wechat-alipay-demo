@@ -3,10 +3,14 @@ package com.naruto.service.impl;
 
 import com.google.gson.Gson;
 import com.naruto.config.WxPayConfig;
+import com.naruto.enums.OrderStatus;
 import com.naruto.enums.wxpay.WxApiType;
+import com.naruto.enums.wxpay.WxNotifyType;
 import com.naruto.model.entity.OrderInfo;
 import com.naruto.service.OrderInfoService;
+import com.naruto.service.PaymentInfoService;
 import com.naruto.service.WxPayService;
+import com.wechat.pay.contrib.apache.httpclient.util.AesUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -18,8 +22,12 @@ import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 微信支付接口实现
@@ -39,6 +47,11 @@ public class WxPayServiceImpl implements WxPayService {
 
     @Resource
     private OrderInfoService orderInfoService;
+
+    @Resource
+    private PaymentInfoService paymentInfoService;
+
+    private final ReentrantLock lock = new ReentrantLock();
 
     /**
      * 创建订单调用Native支付接口
@@ -70,7 +83,7 @@ public class WxPayServiceImpl implements WxPayService {
         paramsMap.put("mchid", wxPayConfig.getMchId());
         paramsMap.put("description", orderInfo.getTitle());
         paramsMap.put("out_trade_no", orderInfo.getOrderNo());
-        paramsMap.put("notify_url", wxPayConfig.getNotifyDomain().concat(WxApiType.NATIVE_PAY.getType()));
+        paramsMap.put("notify_url", wxPayConfig.getNotifyDomain().concat(WxNotifyType.NATIVE_NOTIFY.getType()));
         // 构造订单金额map
         HashMap<String, Object> amountMap = new HashMap<>();
         amountMap.put("total", orderInfo.getTotalFee());
@@ -117,8 +130,80 @@ public class WxPayServiceImpl implements WxPayService {
             map.put("orderNo", orderInfo.getOrderNo());
             return map;
         } finally {
-            // fixme 为什么要关闭这个？连接资源有限？
+            // 为什么要关闭这个？连接资源有限？
             response.close();
         }
+    }
+
+    @Override
+    public void processOrder(HashMap<String, Object> bodyMap) throws GeneralSecurityException {
+        log.info("处理订单");
+        // 解密报文
+        String plainText = decryptFromResource(bodyMap);
+
+        // 将明文转为map
+        Gson gson = new Gson();
+        HashMap hashMap = gson.fromJson(plainText, HashMap.class);
+        String outTradeNo = (String) hashMap.get("out_trade_no");
+
+        /*
+        发生情况：假如说由于网络问题，两条通知消息同时到达，然后判断的支付状态都是未支付，就会执行两次更新订单和记录支付日志
+
+        在对业务数据进行状态检查和处理之前，
+        要采用数据锁进行并发控制
+        以避免函数重入造成的数据混乱
+        */
+        // 处理并发情况下订单状态和支付日志问题
+        // 尝试获取锁，成功获取则立即返回true，获取失败则立即返回false，不必一直等待锁释放
+        if (lock.tryLock()) {
+            try {
+                // 处理重复通知情况下，避免重复通知后向支付日志中记录多条重复数据
+                String orderStatus = orderInfoService.getOrderStatus(outTradeNo);
+                if (!OrderStatus.NOTPAY.getType().equals(orderStatus)) {
+                    return;
+                }
+
+
+                try {
+                    TimeUnit.SECONDS.sleep(5);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                // 更新订单状态
+                orderInfoService.updateStatusByOrderNo(outTradeNo, OrderStatus.SUCCESS);
+                // 记录支付日志
+                paymentInfoService.createPaymentInfo(plainText);
+            } finally {
+                // 主动释放锁
+                lock.unlock();
+            }
+        }
+    }
+
+    /**
+     * 对称解密
+     *
+     * @param bodyMap
+     * @return
+     */
+    private String decryptFromResource(HashMap<String, Object> bodyMap) throws GeneralSecurityException {
+        log.info("解密数据");
+
+        // 通知数据
+        Map<String, String> resourceMap = (Map) bodyMap.get("resource");
+        // 数据密文
+        String ciphertext = resourceMap.get("ciphertext");
+        // 获取随机串
+        String nonce = resourceMap.get("nonce");
+        // 获取附加数据
+        String associatedData = resourceMap.get("associated_data");
+
+        AesUtil aesUtil = new AesUtil(wxPayConfig.getApiV3Key().getBytes());
+        String plainText = aesUtil.decryptToString(associatedData.getBytes(StandardCharsets.UTF_8),
+                nonce.getBytes(StandardCharsets.UTF_8), ciphertext);
+        log.info("解密后明文：{}", plainText);
+        log.info("密文：{}", ciphertext);
+        return plainText;
     }
 }
