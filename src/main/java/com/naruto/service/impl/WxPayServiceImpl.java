@@ -1,6 +1,7 @@
 package com.naruto.service.impl;
 
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.google.gson.Gson;
 import com.naruto.config.WxPayConfig;
 import com.naruto.enums.OrderStatus;
@@ -178,6 +179,73 @@ public class WxPayServiceImpl implements WxPayService {
                 // 主动释放锁
                 lock.unlock();
             }
+        }
+    }
+
+    /**
+     * 取消订单
+     *
+     * @param orderNo
+     */
+    @Override
+    public void cancelOrder(String orderNo) throws Exception {
+        LambdaQueryWrapper<OrderInfo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(OrderInfo::getOrderNo, orderNo);
+        OrderInfo orderInfo = orderInfoService.getOne(queryWrapper);
+        if (!OrderStatus.NOTPAY.getType().equals(orderInfo.getOrderStatus())) {
+            log.info("订单已支付，不能取消");
+            return;
+        }
+
+        // 调用微信支付的关单接口
+        this.closeOrder(orderNo);
+
+        // 更新商户端的订单状态
+        orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.CANCEL);
+    }
+
+    /**
+     * 调用微信关单接口
+     *
+     * @param orderNo
+     */
+    private void closeOrder(String orderNo) throws IOException {
+        String url = String.format(WxApiType.CLOSE_ORDER_BY_NO.getType(), orderNo);
+        url = wxPayConfig.getDomain().concat(url);
+        HttpPost httpPost = new HttpPost(url);
+
+        // 组装json请求体
+        Gson gson = new Gson();
+        HashMap<String, Object> paramsMap = new HashMap<>();
+        paramsMap.put("mchid", wxPayConfig.getMchId());
+        String jsonParams = gson.toJson(paramsMap);
+        log.info("关单请求参数：{}", jsonParams);
+
+        // 将请求体放入请求对象中
+        StringEntity stringEntity = new StringEntity(jsonParams, "UTF-8");
+        stringEntity.setContentType("application/json");
+        httpPost.setEntity(stringEntity);
+        httpPost.setHeader("Accept", "application/json");
+
+        // 完成签名并执行请求
+        CloseableHttpResponse response = wxPayClient.execute(httpPost);
+
+        try {
+            // 获取响应体并转为字符串和响应状态码
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                // 处理成功
+                log.info("成功200");
+            } else if (statusCode == 204) {
+                // 处理成功，无返回Body
+                log.info("成功204");
+            } else {
+                log.info("关闭订单失败,响应码 = {},返回结果 = {}", statusCode, bodyAsString);
+                throw new IOException("request failed");
+            }
+        } catch (IOException e) {
+            response.close();
         }
     }
 

@@ -28,4 +28,11 @@ public interface WxPayService {
      * @param bodyMap
      */
     void processOrder(HashMap<String, Object> bodyMap) throws GeneralSecurityException;
+
+    /**
+     * 取消订单
+     *
+     * @param orderNo
+     */
+    void cancelOrder(String orderNo) throws Exception;
 }

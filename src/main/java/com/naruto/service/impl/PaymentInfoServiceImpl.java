@@ -43,7 +43,7 @@ public class PaymentInfoServiceImpl extends ServiceImpl<PaymentInfoMapper, Payme
         paymentInfo.setPayerTotal(payerTotal);
         paymentInfo.setContent(plainText);
 
-        // TODO 发现问题：微信支付会多次发送通知过来，然后这里也会有多条支付的日志被插入到数据库中去
+        //发现问题：微信支付会多次发送通知过来，然后这里也会有多条支付的日志被插入到数据库中去
         baseMapper.insert(paymentInfo);
     }
 }
