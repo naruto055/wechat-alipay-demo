@@ -51,6 +51,15 @@ public class WxPayController {
         return R.ok().setData(map);
     }
 
+    /**
+     * 处理微信支付回调发送的通知
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
+    @ApiOperation("处理微信支付回调发送的通知")
     @PostMapping("/native/notify")
     public String nativeNotify(HttpServletRequest request, HttpServletResponse response) throws Exception {
         Gson gson = new Gson();
@@ -87,5 +96,20 @@ public class WxPayController {
         map.put("code", "SUCCESS");
         map.put("message", "成功");
         return gson.toJson(map);
+    }
+
+    /**
+     * 根据订单号查询订单
+     *
+     * @param orderNo
+     * @return
+     * @throws IOException
+     */
+    @GetMapping("/query/{orderNo}")
+    public R queryOrder(@PathVariable String orderNo) throws IOException {
+        log.info("查询订单");
+        String result = wxPayService.queryOrder(orderNo);
+
+        return R.ok().setMessage("查询成功").data("result", result);
     }
 }

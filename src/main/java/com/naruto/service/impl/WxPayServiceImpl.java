@@ -14,6 +14,7 @@ import com.naruto.service.WxPayService;
 import com.wechat.pay.contrib.apache.httpclient.util.AesUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -136,6 +137,12 @@ public class WxPayServiceImpl implements WxPayService {
         }
     }
 
+    /**
+     * 处理订单：解密报文，更新订单状态，记录支付日志
+     *
+     * @param bodyMap
+     * @throws GeneralSecurityException
+     */
     @Override
     public void processOrder(HashMap<String, Object> bodyMap) throws GeneralSecurityException {
         log.info("处理订单");
@@ -205,6 +212,44 @@ public class WxPayServiceImpl implements WxPayService {
     }
 
     /**
+     * 根据订单号查询订单
+     *
+     * @param orderNo
+     * @return
+     */
+    @Override
+    public String queryOrder(String orderNo) throws IOException {
+        log.info("调用查单接口：{}", orderNo);
+        String url = String.format(WxApiType.ORDER_QUERY_BY_NO.getType(), orderNo);
+        url = wxPayConfig.getDomain().concat(url).concat("?mchid=").concat(wxPayConfig.getMchId());
+
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.setHeader("Accept", "application/json");
+
+        // 完成签名并执行请求
+        CloseableHttpResponse response = wxPayClient.execute(httpGet);
+        try {
+            // 获取响应体并转为字符串和响应状态码
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                // 处理成功
+                log.info("成功, 返回结果 = {}", response);
+            } else if (statusCode == 204) {
+                // 处理成功，无返回Body
+                log.info("成功");
+            } else {
+                log.error("调用微信查单接口失败,响应码 = {},返回结果 = {}", statusCode, bodyAsString);
+                throw new IOException("request failed");
+            }
+            return bodyAsString;
+        } finally {
+            // 为什么要关闭这个？连接资源有限？
+            response.close();
+        }
+    }
+
+    /**
      * 调用微信关单接口
      *
      * @param orderNo
@@ -231,8 +276,6 @@ public class WxPayServiceImpl implements WxPayService {
         CloseableHttpResponse response = wxPayClient.execute(httpPost);
 
         try {
-            // 获取响应体并转为字符串和响应状态码
-            String bodyAsString = EntityUtils.toString(response.getEntity());
             int statusCode = response.getStatusLine().getStatusCode();
             if (statusCode == 200) {
                 // 处理成功
@@ -241,7 +284,7 @@ public class WxPayServiceImpl implements WxPayService {
                 // 处理成功，无返回Body
                 log.info("成功204");
             } else {
-                log.info("关闭订单失败,响应码 = {},返回结果 = {}", statusCode, bodyAsString);
+                log.info("关闭订单失败,响应码 = {}", statusCode);
                 throw new IOException("request failed");
             }
         } catch (IOException e) {
