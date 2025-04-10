@@ -7,6 +7,7 @@ import com.naruto.config.WxPayConfig;
 import com.naruto.enums.OrderStatus;
 import com.naruto.enums.wxpay.WxApiType;
 import com.naruto.enums.wxpay.WxNotifyType;
+import com.naruto.enums.wxpay.WxTradeState;
 import com.naruto.model.entity.OrderInfo;
 import com.naruto.service.OrderInfoService;
 import com.naruto.service.PaymentInfoService;
@@ -246,6 +247,41 @@ public class WxPayServiceImpl implements WxPayService {
         } finally {
             // 为什么要关闭这个？连接资源有限？
             response.close();
+        }
+    }
+
+    /**
+     * 根据订单号查询微信支付查单接口，核实订单状态
+     * 如果订单已支付，则更新商户端订单状态
+     * 如果订单未支付，则调用关单接口关闭订单，并更新商户端订单状态
+     * @param orderNo
+     */
+    @Override
+    public void checkOrderStatus(String orderNo) throws IOException {
+        log.warn("根据订单号核实订单状态 ===> {}", orderNo);
+
+        String result = this.queryOrder(orderNo);
+        Gson gson = new Gson();
+        HashMap resultMap = gson.fromJson(result, HashMap.class);
+
+        Object tradeState = resultMap.get("trade_state");
+        if (WxTradeState.SUCCESS.getType().equals(tradeState)) {
+            log.warn("核实订单已支付 ===> {}", orderNo);
+
+            //如果确认已支付，则更新商户端的订单状态
+            orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.SUCCESS);
+            // 记录支付日志
+            paymentInfoService.createPaymentInfo(result);
+        }
+
+        if (WxTradeState.NOTPAY.getType().equals(tradeState)) {
+            log.warn("核实订单未支付 ===> {}", orderNo);
+
+            // 如果订单未支付，则调用关单接口
+            this.closeOrder(orderNo);
+
+            // 更新本地订单状态
+            orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.CLOSED);
         }
     }
 

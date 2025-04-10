@@ -43,4 +43,6 @@ public interface WxPayService {
      * @return
      */
     String queryOrder(String orderNo) throws IOException;
+
+    void checkOrderStatus(String orderNo) throws IOException;
 }
