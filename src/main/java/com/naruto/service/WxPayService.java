@@ -45,4 +45,19 @@ public interface WxPayService {
     String queryOrder(String orderNo) throws IOException;
 
     void checkOrderStatus(String orderNo) throws IOException;
+
+    /**
+     * 申请退款
+     * @param orderNo
+     * @param reason
+     * @throws IOException
+     */
+    void refund(String orderNo, String reason) throws IOException;
+
+    /**
+     * 处理退款单
+     *
+     * @param bodyMap
+     */
+    void processRefund(HashMap bodyMap) throws GeneralSecurityException;
 }

@@ -135,6 +135,21 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     }
 
     /**
+     * 根据订单号查询订单
+     *
+     * @param orderNo
+     * @return
+     */
+    @Override
+    public OrderInfo getOrderByOrderNo(String orderNo) {
+        LambdaQueryWrapper<OrderInfo> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(OrderInfo::getOrderNo, orderNo);
+        queryWrapper.eq(OrderInfo::getOrderStatus, OrderStatus.SUCCESS.getType());
+
+        return baseMapper.selectOne(queryWrapper);
+    }
+
+    /**
      * 根据商品id查询未支付订单
      *
      * @param productId
