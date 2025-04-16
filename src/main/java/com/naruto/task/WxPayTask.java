@@ -2,7 +2,9 @@ package com.naruto.task;
 
 
 import com.naruto.model.entity.OrderInfo;
+import com.naruto.model.entity.RefundInfo;
 import com.naruto.service.OrderInfoService;
+import com.naruto.service.RefundInfoService;
 import com.naruto.service.WxPayService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,6 +28,9 @@ public class WxPayTask {
     @Resource
     private WxPayService wxPayService;
 
+    @Resource
+    private RefundInfoService refundInfoService;
+
     /**
      * 定时任务1
      */
@@ -45,6 +50,22 @@ public class WxPayTask {
 
             // 核实订单状态：调用微信支付查单接口
             wxPayService.checkOrderStatus(orderNo);
+        }
+    }
+
+    /**
+     * 每三十秒执行一次，查询创建超过5分钟，并且未成功退款的退款单
+     */
+    @Scheduled(cron = "0/30 * * * * ?")
+    public void refundConfirm() throws IOException {
+        log.info("refundConfirm执行");
+        List<RefundInfo> refundInfoList = refundInfoService.getNoRefundOrderByDuration(5);
+        for (RefundInfo refundInfo : refundInfoList) {
+            String refundNo = refundInfo.getRefundNo();
+            log.warn("超时未退款订单id：{}", refundNo);
+
+            // 核实订单状态，调用微信支付查询退款接口
+            wxPayService.checkRefundStatus(refundNo);
         }
     }
 }

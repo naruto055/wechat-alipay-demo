@@ -7,6 +7,7 @@ import com.naruto.config.WxPayConfig;
 import com.naruto.enums.OrderStatus;
 import com.naruto.enums.wxpay.WxApiType;
 import com.naruto.enums.wxpay.WxNotifyType;
+import com.naruto.enums.wxpay.WxRefundStatus;
 import com.naruto.enums.wxpay.WxTradeState;
 import com.naruto.model.entity.OrderInfo;
 import com.naruto.model.entity.RefundInfo;
@@ -391,6 +392,78 @@ public class WxPayServiceImpl implements WxPayService {
             } finally {
                 lock.unlock();
             }
+        }
+    }
+
+    /**
+     * 查询退款单，调用微信支付查询退款接口
+     *
+     * @param refundNo
+     * @return
+     */
+    @Override
+    public String queryRefund(String refundNo) throws IOException {
+        log.info("查询退款单接口 ===> {}", refundNo);
+
+        String url = String.format(WxApiType.DOMESTIC_REFUNDS_QUERY.getType(), refundNo);
+        url = wxPayConfig.getDomain().concat(url);
+
+        // 创建http请求对象
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.setHeader("Accept", "application/json");
+
+        CloseableHttpResponse response = wxPayClient.execute(httpGet);
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("查询退款单成功 ===> {}", bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("成功");
+            } else {
+                throw new RuntimeException("查询退款异常，响应码 = " + statusCode + ", 查询退款结果返回 = " + bodyAsString);
+            }
+            return bodyAsString;
+        } finally {
+            response.close();
+        }
+    }
+
+    /**
+     * 根据退款单号检查退款单状态
+     *
+     * @param refundNo
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void checkRefundStatus(String refundNo) throws IOException {
+        log.warn("根据退款单号核实退款状态 ===> {}", refundNo);
+
+        // 调用查询退款接口
+        String result = this.queryRefund(refundNo);
+        Gson gson = new Gson();
+        HashMap hashMap = gson.fromJson(result, HashMap.class);
+
+        // 获取微信支付端退款状态
+        String status = (String) hashMap.get("status");
+        String orderNo = (String) hashMap.get("out_trade_no");
+
+        if (WxRefundStatus.SUCCESS.getType().equals(status)) {
+            log.warn("核实订单已退款成功 ===> {}", refundNo);
+
+            // 更新订单状态
+            orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.REFUND_SUCCESS);
+            // 更新退款单
+            refundInfoService.updateRefund(result);
+        }
+
+        if (WxRefundStatus.ABNORMAL.getType().equals(status)) {
+            log.warn("核实订单退款异常 ===> {}", refundNo);
+
+            // 如果确认退款异常，更新订单状态
+            orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.REFUND_ABNORMAL);
+            // 更新退款单
+            refundInfoService.updateRefund(result);
         }
     }
 

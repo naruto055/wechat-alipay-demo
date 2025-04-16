@@ -136,6 +136,7 @@ public class WxPayController {
      * @param response
      * @return
      */
+    @ApiOperation("退款结果通知")
     @PostMapping("/refunds/notify")
     public String refundsNotify(HttpServletRequest request, HttpServletResponse response) {
         log.info("退款通知执行");
@@ -150,7 +151,7 @@ public class WxPayController {
             log.info("支付通知的id ===> {}", requestId);
 
             // 签名验证
-            //签名的验证
+            // 签名的验证
             WechatPay2ValidatorForRequest wechatPay2ValidatorForRequest
                     = new WechatPay2ValidatorForRequest(verifier, body, requestId);
             if (!wechatPay2ValidatorForRequest.validate(request)) {
@@ -174,5 +175,19 @@ public class WxPayController {
         } catch (IOException | GeneralSecurityException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * 查询退款单
+     *
+     * @param refundNo
+     * @return
+     */
+    @ApiOperation("查询退款单")
+    @GetMapping("/query-refund/{refundNo}")
+    public R queryRefund(@PathVariable String refundNo) throws IOException {
+        log.info("查询退款单");
+        String result = wxPayService.queryRefund(refundNo);
+        return R.ok().setMessage("查询成功").data("result", result);
     }
 }

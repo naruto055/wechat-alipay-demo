@@ -3,6 +3,7 @@ package com.naruto.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
+import com.naruto.enums.wxpay.WxRefundStatus;
 import com.naruto.mapper.RefundInfoMapper;
 import com.naruto.model.entity.OrderInfo;
 import com.naruto.model.entity.RefundInfo;
@@ -12,7 +13,12 @@ import com.naruto.util.OrderNoUtils;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 @Service
 public class RefundInfoServiceImpl extends ServiceImpl<RefundInfoMapper, RefundInfo> implements RefundInfoService {
@@ -66,10 +72,27 @@ public class RefundInfoServiceImpl extends ServiceImpl<RefundInfoMapper, RefundI
         // 退款回调中的回调参数
         if (hashMap.get("refund_status") != null) {
             refundInfo.setRefundStatus(hashMap.get("refund_status"));
-        refundInfo.setContentNotify(bodyAsString);
+            refundInfo.setContentNotify(bodyAsString);
         }
 
 
         baseMapper.update(refundInfo, queryWrapper);
+    }
+
+    /**
+     * 查询超过minutes未退款的订单
+     *
+     * @param minutes
+     * @return
+     */
+    @Override
+    public List<RefundInfo> getNoRefundOrderByDuration(int minutes) {
+        Instant instant = Instant.now().minus(Duration.ofMinutes(minutes));
+        LocalDateTime minus = LocalDateTime.now().minus(Duration.ofMinutes(minutes));
+        QueryWrapper<RefundInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("refund_status", WxRefundStatus.PROCESSING.getType());
+        queryWrapper.le("create_time", minus);
+        List<RefundInfo> refundInfoList = baseMapper.selectList(queryWrapper);
+        return refundInfoList;
     }
 }

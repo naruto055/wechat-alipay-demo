@@ -3,6 +3,8 @@ package com.naruto.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.naruto.model.entity.RefundInfo;
 
+import java.util.List;
+
 public interface RefundInfoService extends IService<RefundInfo> {
 
     RefundInfo createRefundInfo(String orderNo, String reason);
@@ -13,4 +15,12 @@ public interface RefundInfoService extends IService<RefundInfo> {
      * @param bodyAsString
      */
     void updateRefund(String bodyAsString);
+
+    /**
+     * 查询超过minutes分钟未退款的订单
+     *
+     * @param minutes
+     * @return
+     */
+    List<RefundInfo> getNoRefundOrderByDuration(int minutes);
 }

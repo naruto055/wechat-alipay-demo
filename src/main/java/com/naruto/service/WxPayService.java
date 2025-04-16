@@ -48,6 +48,7 @@ public interface WxPayService {
 
     /**
      * 申请退款
+     *
      * @param orderNo
      * @param reason
      * @throws IOException
@@ -60,4 +61,19 @@ public interface WxPayService {
      * @param bodyMap
      */
     void processRefund(HashMap bodyMap) throws GeneralSecurityException;
+
+    /**
+     * 根据退款单号查询退款单
+     *
+     * @param refundNo
+     * @return
+     */
+    String queryRefund(String refundNo) throws IOException;
+
+    /**
+     * 根据退款单号核实退款单状态
+     *
+     * @param refundNo
+     */
+    void checkRefundStatus(String refundNo) throws IOException;
 }
