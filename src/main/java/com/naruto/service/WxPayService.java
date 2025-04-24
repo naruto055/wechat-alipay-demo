@@ -76,4 +76,22 @@ public interface WxPayService {
      * @param refundNo
      */
     void checkRefundStatus(String refundNo) throws IOException;
+
+    /**
+     * 查询账单
+     *
+     * @param billDate 截止日期
+     * @param type     账单类型
+     * @return
+     */
+    String queryBill(String billDate, String type) throws IOException;
+
+    /**
+     * 下载账单
+     *
+     * @param billDate
+     * @param type
+     * @return
+     */
+    String downloadBill(String billDate, String type) throws IOException;
 }

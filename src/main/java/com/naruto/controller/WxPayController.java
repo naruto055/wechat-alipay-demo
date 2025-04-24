@@ -190,4 +190,34 @@ public class WxPayController {
         String result = wxPayService.queryRefund(refundNo);
         return R.ok().setMessage("查询成功").data("result", result);
     }
+
+    /**
+     * 获取账单url
+     *
+     * @param billDate
+     * @param type
+     * @return
+     */
+    @ApiOperation("获取账单url")
+    @GetMapping("/querybill/{billDate}/{type}")
+    public R queryTradeBill(@PathVariable String billDate, @PathVariable String type) throws IOException {
+        log.info("获取账单url");
+        String downloadUrl = wxPayService.queryBill(billDate, type);
+        return R.ok().setMessage("获取账单url成功").data("downloadUrl", downloadUrl);
+    }
+
+    /**
+     * 下载账单
+     *
+     * @param billDate
+     * @param type
+     * @return
+     */
+    @ApiOperation("下载账单")
+    @GetMapping("/downloadbill/{billDate}/{type}")
+    public R downloadBill(@PathVariable String billDate, @PathVariable String type) throws IOException {
+        log.info("下载账单");
+        String result = wxPayService.downloadBill(billDate, type);
+        return R.ok().data("result", result);
+    }
 }

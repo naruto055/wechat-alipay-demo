@@ -62,6 +62,9 @@ public class WxPayServiceImpl implements WxPayService {
     @Resource
     private RefundInfoService refundInfoService;
 
+    @Resource
+    private CloseableHttpClient wxPayNoSignClient; // 无需应答签名
+
     private final ReentrantLock lock = new ReentrantLock();
 
     /**
@@ -464,6 +467,86 @@ public class WxPayServiceImpl implements WxPayService {
             orderInfoService.updateStatusByOrderNo(orderNo, OrderStatus.REFUND_ABNORMAL);
             // 更新退款单
             refundInfoService.updateRefund(result);
+        }
+    }
+
+    /**
+     * 查询对账单
+     *
+     * @param billDate 截止日期
+     * @param type     账单类型
+     * @return
+     */
+    @Override
+    public String queryBill(String billDate, String type) throws IOException {
+        log.warn("申请账单接口调用{}", billDate);
+        String url = "";
+        if ("tradebill".equals(type)) {
+            url = WxApiType.TRADE_BILLS.getType();
+        } else if ("fundflowbill".equals(type)) {
+            url = WxApiType.FUND_FLOW_BILLS.getType();
+        } else {
+            log.warn("不支持的账单类型");
+            throw new RuntimeException("不支持的账单类型");
+        }
+        url = wxPayConfig.getDomain().concat(url).concat("?bill_date=").concat(billDate);
+
+        // 创建http对象
+        HttpGet httpGet = new HttpGet(url);
+        httpGet.setHeader("Accept", "application/json");
+
+        CloseableHttpResponse response = wxPayClient.execute(httpGet);
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("申请账单成功 ===> {}", bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("成功");
+            } else {
+                log.error("申请账单异常，响应码 = {}，申请账单返回结果 = {}", statusCode, bodyAsString);
+                throw new RuntimeException("申请账单异常，响应码 = " + statusCode + ", 申请账单返回结果 = " + bodyAsString);
+            }
+
+            Gson gson = new Gson();
+            HashMap hashMap = gson.fromJson(bodyAsString, HashMap.class);
+            return ((String) hashMap.get("download_url"));
+        } finally {
+            response.close();
+        }
+    }
+
+    /**
+     * 下载对账单
+     *
+     * @param billDate
+     * @param type
+     * @return
+     */
+    @Override
+    public String downloadBill(String billDate, String type) throws IOException {
+        String downloadUrl = this.queryBill(billDate, type);
+
+        HttpGet httpGet = new HttpGet(downloadUrl);
+        httpGet.setHeader("Accept", "application/json");
+
+        // 注意：这里调用的无需签名的httpClient，在wxPayConfig中注入这样的一个httpClient
+        CloseableHttpResponse response = wxPayNoSignClient.execute(httpGet);
+        try {
+            String bodyAsString = EntityUtils.toString(response.getEntity());
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == 200) {
+                log.info("下载对账单成功 ===> {}", bodyAsString);
+            } else if (statusCode == 204) {
+                log.info("成功");
+            } else {
+                log.error("下载对账单异常，响应码 = {}，下载对账单返回结果 = {}", statusCode, bodyAsString);
+                throw new RuntimeException("下载对账单异常，响应码 = " + statusCode + ", 下载对账单返回结果 = " + bodyAsString);
+            }
+
+            return bodyAsString;
+        } finally {
+            response.close();
         }
     }
 

@@ -1,12 +1,10 @@
 package com.naruto.config;
 
 import com.wechat.pay.contrib.apache.httpclient.WechatPayHttpClientBuilder;
-import com.wechat.pay.contrib.apache.httpclient.auth.PrivateKeySigner;
-import com.wechat.pay.contrib.apache.httpclient.auth.ScheduledUpdateCertificatesVerifier;
-import com.wechat.pay.contrib.apache.httpclient.auth.WechatPay2Credentials;
-import com.wechat.pay.contrib.apache.httpclient.auth.WechatPay2Validator;
+import com.wechat.pay.contrib.apache.httpclient.auth.*;
 import com.wechat.pay.contrib.apache.httpclient.util.PemUtil;
 import lombok.Data;
+import org.apache.http.client.HttpClient;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -96,11 +94,30 @@ public class WxPayConfig {
         PrivateKey privateKey = getPrivateKey(privateKeyPath);
 
         // 用于构造HttpClient
-        WechatPayHttpClientBuilder builder = WechatPayHttpClientBuilder.create()
-                .withMerchant(mchId, mchSerialNo, privateKey)
-                .withValidator(new WechatPay2Validator(verifier));
+        WechatPayHttpClientBuilder builder = WechatPayHttpClientBuilder.create().withMerchant(mchId, mchSerialNo, privateKey).withValidator(new WechatPay2Validator(verifier));
         // ... 接下来，你仍然可以通过builder设置各种参数，来配置你的HttpClient
         // 通过WechatPayHttpClientBuilder构造的HttpClient，会自动的处理签名和验签，并进行证书自动更新
+        return builder.build();
+    }
+
+    /**
+     * 获取HttpClient，无需进行应答签名验证，跳过验签的流程
+     */
+    @Bean(name = "wxPayNoSignClient")
+    public CloseableHttpClient getWxPayNoSignClient() {
+
+        // 获取商户私钥
+        PrivateKey privateKey = getPrivateKey(privateKeyPath);
+
+        // 用于构造HttpClient
+        WechatPayHttpClientBuilder builder = WechatPayHttpClientBuilder.create()
+                // 设置商户信息
+                .withMerchant(mchId, mchSerialNo, privateKey)
+                // 无需进行签名验证、通过withValidator((response) -> true)实现
+                .withValidator((response) -> true);
+
+        // 通过WechatPayHttpClientBuilder构造的HttpClient，会自动的处理签名和验签，并进行证书自动更新
+
         return builder.build();
     }
 }
